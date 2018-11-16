@@ -30,7 +30,7 @@ isoform_cds <- get_filtered_isoform_cds(sir$so, sample_to_condition)
 
 gene_methods <- list(
   DESeq2 = runDESeq2,
-  edgeR = runEdgeR,
+  edgeR = runEdgeRQL,
   limmaVoom = runVoom
   # edgerRobust = runEdgeRRobust,
   # EBSeq = runEBSeq
@@ -72,7 +72,7 @@ gene_cds <- make_count_data_set(gene_counts_filtered, sample_to_condition)
 
 gene_methods_count <- list(
   DESeq2 = runDESeq2,
-  edgeR = runEdgeR,
+  edgeR = runEdgeRQL,
   limmaVoom = runVoom
   # edgerRobust = runEdgeRRobust,
   # EBSeq = runEBSeq

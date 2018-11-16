@@ -428,7 +428,8 @@ edgeR_filter_and_run <- function(counts, stc, match_filter, is_counts = TRUE) {
     design <- model.matrix(~condition, stc)
     colnames(design)[2] <- "pData(e)$conditionB"
   }
-  res <- runEdgeR(cds, FALSE, FALSE, is_counts, design)
+  #res <- runEdgeRLRT(cds, FALSE, FALSE, is_counts, design)
+  res <- runEdgeRQL(cds, FALSE, FALSE, is_counts, design)
 
   match_filter <- names(which(match_filter))
 
@@ -875,7 +876,7 @@ runDESeq <- function(e, as_gene = TRUE, compute_filter = FALSE) {
 }
 
 
-runEdgeR <- function(e, as_gene = TRUE, compute_filter = FALSE, is_counts = TRUE, design = NULL) {
+runEdgeRLRT <- function(e, as_gene = TRUE, compute_filter = FALSE, is_counts = TRUE, design = NULL) {
   if (is_counts) {
     design <- model.matrix(~ pData(e)$condition)
     dgel <- DGEList(exprs(e))
@@ -915,7 +916,46 @@ runEdgeR <- function(e, as_gene = TRUE, compute_filter = FALSE, is_counts = TRUE
     as_gene = as_gene)
 }
 
-runEdgeRRobust <- function(e, as_gene = TRUE) {
+runEdgeRQL <- function(e, as_gene = TRUE, compute_filter = FALSE, is_counts = TRUE, design = NULL) {
+  if (is_counts) {
+    design <- model.matrix(~ pData(e)$condition)
+    dgel <- DGEList(exprs(e))
+  } else {
+    dgel <- e
+  }
+  if (compute_filter) {
+    # Section 2.6 in edgeR vignette
+    # https://www.bioconductor.org/packages/3.3/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
+    keep <- rowSums(cpm(dgel) > 1) >= 2
+    dgel <- dgel[keep, , keep.lib.sizes=FALSE]
+  }
+  dgel <- calcNormFactors(dgel)
+  # settings for QL from https://f1000research.com/articles/5-1438/v2
+  dgel <- estimateDisp(dgel, design, robust = TRUE)
+  edger.fit <- glmQLFit(dgel, design, robust = TRUE)
+  edger.ql <- glmQLFTest(edger.fit)
+  # predbeta <- predFC(exprs(e), design, offset=getOffset(dgel), dispersion=dgel$tagwise.dispersion)
+  # predbeta10 <- predFC(exprs(e), design, prior.count=10, offset=getOffset(dgel), dispersion=dgel$tagwise.dispersion)
+  predbeta <- predFC(dgel$counts, design, offset=getOffset(dgel), dispersion=dgel$tagwise.dispersion)
+  predbeta10 <- predFC(dgel$counts, design, prior.count=10, offset=getOffset(dgel), dispersion=dgel$tagwise.dispersion)
+  pvals <- edger.ql$table$PValue
+  # pvals[rowSums(exprs(e)) == 0] <- NA
+  padj <- p.adjust(pvals,method="BH")
+  padj[is.na(padj)] <- 1
+
+  rename_target_id(
+    data.frame(
+      target_id = rownames(edger.ql$table),
+      pval = pvals,
+      qval = padj,
+      beta = log2(exp(1)) * edger.fit$coefficients[,"pData(e)$conditionB"],
+      predbeta = predbeta[,"pData(e)$conditionB"],
+      predbeta10 = predbeta10[,"pData(e)$conditionB"],
+      stringsAsFactors = FALSE),
+    as_gene = as_gene)
+}
+
+runEdgeRRobustLRT <- function(e, as_gene = TRUE) {
   design <- model.matrix(~ pData(e)$condition)
   dgel <- DGEList(exprs(e))
   dgel <- calcNormFactors(dgel)
@@ -933,6 +973,32 @@ runEdgeRRobust <- function(e, as_gene = TRUE) {
   rename_target_id(
     data.frame(
       target_id = rownames(edger.lrt$table),
+      pval = pvals,
+      qval = padj,
+      beta=log2(exp(1)) * edger.fit$coefficients[,"pData(e)$conditionB"],
+      predbeta=predbeta[,"pData(e)$conditionB"],
+      stringsAsFactors = FALSE),
+    as_gene = as_gene)
+}
+
+runEdgeRRobustQL <- function(e, as_gene = TRUE) {
+  design <- model.matrix(~ pData(e)$condition)
+  dgel <- DGEList(exprs(e))
+  dgel <- calcNormFactors(dgel)
+  # settings for QL from https://f1000research.com/articles/5-1438/v2
+  dgel <- estimateDisp(dgel, design, robust = TRUE)
+  edger.fit <- glmQLFit(dgel, design, robust = TRUE)
+  edger.ql <- glmQLFTest(edger.fit)
+  predbeta <- predFC(exprs(e), design, offset=getOffset(dgel), dispersion=dgel$tagwise.dispersion)
+  pvals <- edger.ql$table$PValue
+  pvals[rowSums(exprs(e)) == 0] <- NA
+  padj <- p.adjust(pvals,method="BH")
+  padj[is.na(padj)] <- 1
+  # list(pvals=pvals, padj=padj, beta=log2(exp(1)) * edger.fit$coefficients[,"pData(e)$conditionB"],
+  #      predbeta=predbeta[,"pData(e)$conditionB"])
+  rename_target_id(
+    data.frame(
+      target_id = rownames(edger.ql$table),
       pval = pvals,
       qval = padj,
       beta=log2(exp(1)) * edger.fit$coefficients[,"pData(e)$conditionB"],

@@ -64,7 +64,7 @@ sgr <- list(sleuth.lrt = lrt, sleuth.wt = wt)
 
 gene_methods <- list(
   DESeq2 = runDESeq2,
-  edgeR = runEdgeR,
+  edgeR = runEdgeRQL,
   limmaVoom = runVoom
   # edgerRobust = runEdgeRRobust,
   # EBSeq = runEBSeq

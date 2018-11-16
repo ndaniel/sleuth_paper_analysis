@@ -97,8 +97,8 @@ debugonce(runDESeq2)
 res <- runDESeq2(es)
 res_2 <- runDESeq2Outliers(es)
 
-debugonce(runEdgeR)
-edgeR_result <- runEdgeRRobust(es)
+debugonce(runEdgeRQL)
+edgeR_result <- runEdgeRRobustQL(es)
 
 limma_results <- runVoom(es)
 tmp <- runEBSeq(es)
